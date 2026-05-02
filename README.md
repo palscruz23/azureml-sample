@@ -12,18 +12,18 @@ Current focus:
 ## Current Status
 
 Implemented so far:
-- regression training script in [src/train.py](/home/palscruz23/azureml-sample/src/train.py)
-- FastAPI inference app in [app/main.py](/home/palscruz23/azureml-sample/app/main.py)
+- regression training script in [src/train.py](src/train.py)
+- FastAPI inference app in [app/main.py](app/main.py)
 - model artifact saved to `outputs/model/model.joblib`
 - Dockerfile for the FastAPI service
 - Azure ML endpoint configuration in `endpoint.yml`
 - Azure ML deployment configuration in `deployment.yml`
 - Docker image pushed to Azure Container Registry:
-  - `diabetes20260422.azurecr.io/azureml-sample:v1`
+  - `<acr-login-server>/<image-name>:<image-tag>`
 - Azure ML online endpoint created:
-  - `diabetes-endpoint-20260422`
+  - `<endpoint-name>`
 - Azure ML online deployment created:
-  - `blue`
+  - `<deployment-name>`
 - endpoint scoring was validated with a live request
 - local endpoint routes:
   - `GET /health`
@@ -41,11 +41,11 @@ Not done yet:
 3. `app/main.py` loads that model bundle on startup.
 4. The FastAPI app exposes `/score` for prediction requests.
 5. The `Dockerfile` packages the FastAPI app and model artifact into a container image.
-6. The image is tagged for Azure Container Registry as `diabetes20260422.azurecr.io/azureml-sample:v1`.
+6. The image is tagged for Azure Container Registry as `<acr-login-server>/<image-name>:<image-tag>`.
 7. The image is pushed to Azure Container Registry.
 8. The Azure ML online endpoint is created from `endpoint.yml`.
 9. The endpoint identity is granted `AcrPull` permission on the registry.
-10. Azure ML creates the `blue` online deployment from `deployment.yml`.
+10. Azure ML creates the online deployment from `deployment.yml`.
 11. Requests sent to the endpoint are routed to the FastAPI app running in the deployment container.
 
 ## Run Locally
@@ -152,7 +152,7 @@ The Docker image is built from the project root.
 
 ```bash
 docker build \
-  -t diabetes20260422.azurecr.io/azureml-sample:v1 \
+  -t <acr-login-server>/<image-name>:<image-tag> \
   .
 ```
 
@@ -160,9 +160,9 @@ Command breakdown:
 
 - `docker build` creates an image from the `Dockerfile`.
 - `-t` assigns the image name and tag.
-- `diabetes20260422.azurecr.io` is the Azure Container Registry login server.
-- `azureml-sample` is the repository/image name inside ACR.
-- `v1` is the image version tag.
+- `<acr-login-server>` is the Azure Container Registry login server.
+- `<image-name>` is the repository/image name inside ACR.
+- `<image-tag>` is the image version tag.
 - `.` means the current project folder is the Docker build context.
 
 Verify the local image:
@@ -174,7 +174,7 @@ docker images
 Expected repository and tag:
 
 ```text
-diabetes20260422.azurecr.io/azureml-sample   v1
+<acr-login-server>/<image-name>   <image-tag>
 ```
 
 ## Push Image To ACR
@@ -182,26 +182,26 @@ diabetes20260422.azurecr.io/azureml-sample   v1
 Log in to Azure Container Registry:
 
 ```bash
-az acr login --name diabetes20260422
+az acr login --name <acr-name>
 ```
 
 Push the image:
 
 ```bash
-docker push diabetes20260422.azurecr.io/azureml-sample:v1
+docker push <acr-login-server>/<image-name>:<image-tag>
 ```
 
 Docker knows to push to ACR because the image name starts with the registry server:
 
 ```text
-diabetes20260422.azurecr.io
+<acr-login-server>
 ```
 
 Verify the image is in ACR:
 
 ```bash
 az acr repository list \
-  --name diabetes20260422 \
+  --name <acr-name> \
   -o table
 ```
 
@@ -209,15 +209,15 @@ Check the image tag:
 
 ```bash
 az acr repository show-tags \
-  --name diabetes20260422 \
-  --repository azureml-sample \
+  --name <acr-name> \
+  --repository <image-name> \
   -o table
 ```
 
 Expected tag:
 
 ```text
-v1
+<image-tag>
 ```
 
 ## Azure ML Deployment
@@ -231,8 +231,8 @@ Create the endpoint:
 ```bash
 az ml online-endpoint create \
   --file endpoint.yml \
-  --resource-group poljohncruz-rg \
-  --workspace-name my-workspace
+  --resource-group <resource-group> \
+  --workspace-name <workspace-name>
 ```
 
 If endpoint creation fails with `SubscriptionNotRegistered` and the missing provider is shown as `[N/A]`, check these providers:
@@ -261,17 +261,17 @@ Grant the endpoint identity permission to pull from ACR:
 
 ```bash
 az ml online-endpoint show \
-  --name diabetes-endpoint-20260422 \
-  --resource-group poljohncruz-rg \
-  --workspace-name my-workspace \
+  --name <endpoint-name> \
+  --resource-group <resource-group> \
+  --workspace-name <workspace-name> \
   --query identity.principal_id \
   -o tsv
 ```
 
 ```bash
 az acr show \
-  --name diabetes20260422 \
-  --resource-group poljohncruz-rg \
+  --name <acr-name> \
+  --resource-group <resource-group> \
   --query id \
   -o tsv
 ```
@@ -290,19 +290,19 @@ Create the deployment:
 ```bash
 az ml online-deployment create \
   --file deployment.yml \
-  --resource-group poljohncruz-rg \
-  --workspace-name my-workspace \
+  --resource-group <resource-group> \
+  --workspace-name <workspace-name> \
   --all-traffic
 ```
 
-If a failed deployment named `blue` already exists, delete only the deployment and recreate it:
+If a failed deployment already exists, delete only the deployment and recreate it:
 
 ```bash
 az ml online-deployment delete \
-  --name blue \
-  --endpoint-name diabetes-endpoint-20260422 \
-  --resource-group poljohncruz-rg \
-  --workspace-name my-workspace \
+  --name <deployment-name> \
+  --endpoint-name <endpoint-name> \
+  --resource-group <resource-group> \
+  --workspace-name <workspace-name> \
   --yes
 ```
 
@@ -310,10 +310,10 @@ Check the deployment:
 
 ```bash
 az ml online-deployment show \
-  --name blue \
-  --endpoint-name diabetes-endpoint-20260422 \
-  --resource-group poljohncruz-rg \
-  --workspace-name my-workspace \
+  --name <deployment-name> \
+  --endpoint-name <endpoint-name> \
+  --resource-group <resource-group> \
+  --workspace-name <workspace-name> \
   -o table
 ```
 
@@ -321,9 +321,9 @@ Get the scoring URI:
 
 ```bash
 az ml online-endpoint show \
-  --name diabetes-endpoint-20260422 \
-  --resource-group poljohncruz-rg \
-  --workspace-name my-workspace \
+  --name <endpoint-name> \
+  --resource-group <resource-group> \
+  --workspace-name <workspace-name> \
   --query scoring_uri \
   -o tsv
 ```
@@ -332,9 +332,9 @@ Get the endpoint key:
 
 ```bash
 az ml online-endpoint get-credentials \
-  --name diabetes-endpoint-20260422 \
-  --resource-group poljohncruz-rg \
-  --workspace-name my-workspace
+  --name <endpoint-name> \
+  --resource-group <resource-group> \
+  --workspace-name <workspace-name>
 ```
 
 Call the live endpoint:

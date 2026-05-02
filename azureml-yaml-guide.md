@@ -20,14 +20,14 @@ This project uses:
 
 ```yaml
 $schema: https://azuremlschemas.azureedge.net/latest/managedOnlineEndpoint.schema.json
-name: diabetes-endpoint-20260422
+name: <endpoint-name>
 auth_mode: key
 ```
 
 Field breakdown:
 
 - `$schema` tells tools which Azure ML schema to use for validation and editor hints.
-- `name` is the Azure ML online endpoint name.
+- `name` is the Azure ML online endpoint name. Use your own endpoint name, for example `<endpoint-name>`.
 - `auth_mode: key` means callers need an endpoint key to send requests.
 
 Create the endpoint with:
@@ -35,17 +35,17 @@ Create the endpoint with:
 ```bash
 az ml online-endpoint create \
   --file endpoint.yml \
-  --resource-group poljohncruz-rg \
-  --workspace-name my-workspace
+  --resource-group <resource-group> \
+  --workspace-name <workspace-name>
 ```
 
 Check the endpoint with:
 
 ```bash
 az ml online-endpoint show \
-  --name diabetes-endpoint-20260422 \
-  --resource-group poljohncruz-rg \
-  --workspace-name my-workspace \
+  --name <endpoint-name> \
+  --resource-group <resource-group> \
+  --workspace-name <workspace-name> \
   -o table
 ```
 
@@ -58,10 +58,10 @@ This project uses:
 ```yaml
 $schema: https://azuremlschemas.azureedge.net/latest/managedOnlineDeployment.schema.json
 name: blue
-endpoint_name: diabetes-endpoint-20260422
+endpoint_name: <endpoint-name>
 
 environment:
-  image: diabetes20260422.azurecr.io/azureml-sample:v1
+  image: <acr-login-server>/<image-name>:<image-tag>
   inference_config:
     liveness_route:
       port: 80
@@ -79,7 +79,7 @@ instance_count: 1
 
 Field breakdown:
 
-- `name: blue` names this deployment. `blue` is a common name for the first stable deployment.
+- `name: blue` names this deployment. `blue` is a common example name for the first stable deployment.
 - `endpoint_name` connects this deployment to the endpoint from `endpoint.yml`.
 - `environment.image` is the ACR image Azure ML should pull and run.
 - `liveness_route` tells Azure ML how to check whether the container process is alive.
@@ -93,8 +93,8 @@ Create the deployment with:
 ```bash
 az ml online-deployment create \
   --file deployment.yml \
-  --resource-group poljohncruz-rg \
-  --workspace-name my-workspace \
+  --resource-group <resource-group> \
+  --workspace-name <workspace-name> \
   --all-traffic
 ```
 
@@ -106,18 +106,18 @@ The endpoint name and deployment `endpoint_name` must match:
 
 ```yaml
 # endpoint.yml
-name: diabetes-endpoint-20260422
+name: <endpoint-name>
 ```
 
 ```yaml
 # deployment.yml
-endpoint_name: diabetes-endpoint-20260422
+endpoint_name: <endpoint-name>
 ```
 
 The image in `deployment.yml` must match the image pushed to ACR:
 
 ```yaml
-image: diabetes20260422.azurecr.io/azureml-sample:v1
+image: <acr-login-server>/<image-name>:<image-tag>
 ```
 
 The route paths in `deployment.yml` must match the FastAPI routes in `app/main.py`:
