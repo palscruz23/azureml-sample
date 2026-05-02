@@ -22,12 +22,15 @@ Implemented so far:
   - `diabetes20260422.azurecr.io/azureml-sample:v1`
 - Azure ML online endpoint created:
   - `diabetes-endpoint-20260422`
+- Azure ML online deployment created:
+  - `blue`
+- endpoint scoring was validated with a live request
 - local endpoint routes:
   - `GET /health`
   - `POST /score`
 
 Not done yet:
-- Azure ML online deployment and scoring validation
+- add automated deployment validation
 
 ## Project Flow
 
@@ -41,7 +44,9 @@ Not done yet:
 6. The image is tagged for Azure Container Registry as `diabetes20260422.azurecr.io/azureml-sample:v1`.
 7. The image is pushed to Azure Container Registry.
 8. The Azure ML online endpoint is created from `endpoint.yml`.
-9. Azure ML will use the ACR image when creating the online deployment from `deployment.yml`.
+9. The endpoint identity is granted `AcrPull` permission on the registry.
+10. Azure ML creates the `blue` online deployment from `deployment.yml`.
+11. Requests sent to the endpoint are routed to the FastAPI app running in the deployment container.
 
 ## Run Locally
 
@@ -215,13 +220,9 @@ Expected tag:
 v1
 ```
 
-## Next Steps For Azure ML
+## Azure ML Deployment
 
-The image is now available in ACR and the online endpoint has been created. The next work items are:
-
-1. Create the Azure ML online deployment from `deployment.yml`.
-2. Confirm traffic is routed to the `blue` deployment.
-3. Test the deployed endpoint with the same JSON payload used locally.
+The image is available in ACR, the online endpoint has been created, and the `blue` deployment has been validated.
 
 Create the endpoint:
 
@@ -253,3 +254,126 @@ Registered
 ```
 
 Then retry the endpoint creation command.
+
+Grant the endpoint identity permission to pull from ACR:
+
+```bash
+az ml online-endpoint show \
+  --name diabetes-endpoint-20260422 \
+  --resource-group poljohncruz-rg \
+  --workspace-name my-workspace \
+  --query identity.principal_id \
+  -o tsv
+```
+
+```bash
+az acr show \
+  --name diabetes20260422 \
+  --resource-group poljohncruz-rg \
+  --query id \
+  -o tsv
+```
+
+Use those two values in the role assignment:
+
+```bash
+az role assignment create \
+  --assignee <endpoint-principal-id> \
+  --role AcrPull \
+  --scope <acr-resource-id>
+```
+
+Create the deployment:
+
+```bash
+az ml online-deployment create \
+  --file deployment.yml \
+  --resource-group poljohncruz-rg \
+  --workspace-name my-workspace \
+  --all-traffic
+```
+
+If a failed deployment named `blue` already exists, delete only the deployment and recreate it:
+
+```bash
+az ml online-deployment delete \
+  --name blue \
+  --endpoint-name diabetes-endpoint-20260422 \
+  --resource-group poljohncruz-rg \
+  --workspace-name my-workspace \
+  --yes
+```
+
+Check the deployment:
+
+```bash
+az ml online-deployment show \
+  --name blue \
+  --endpoint-name diabetes-endpoint-20260422 \
+  --resource-group poljohncruz-rg \
+  --workspace-name my-workspace \
+  -o table
+```
+
+Get the scoring URI:
+
+```bash
+az ml online-endpoint show \
+  --name diabetes-endpoint-20260422 \
+  --resource-group poljohncruz-rg \
+  --workspace-name my-workspace \
+  --query scoring_uri \
+  -o tsv
+```
+
+Get the endpoint key:
+
+```bash
+az ml online-endpoint get-credentials \
+  --name diabetes-endpoint-20260422 \
+  --resource-group poljohncruz-rg \
+  --workspace-name my-workspace
+```
+
+Call the live endpoint:
+
+```bash
+curl -X POST "<scoring-uri>" \
+  -H "Authorization: Bearer <primary-or-secondary-key>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "input_data": [
+      {
+        "age": 0.038075906,
+        "sex": 0.05068012,
+        "bmi": 0.061696207,
+        "bp": 0.021872354,
+        "s1": -0.044223498,
+        "s2": -0.034820763,
+        "s3": -0.043400846,
+        "s4": -0.002592262,
+        "s5": 0.019907486,
+        "s6": -0.017646125
+      }
+    ]
+  }'
+```
+
+Expected response shape:
+
+```json
+{
+  "predictions": [178.4]
+}
+```
+
+The deployed request path is:
+
+```text
+client request
+  -> Azure ML online endpoint
+  -> blue deployment
+  -> Docker container from ACR
+  -> FastAPI /score route
+  -> model prediction response
+```
