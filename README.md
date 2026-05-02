@@ -2,6 +2,8 @@
 
 This project is a learning exercise for deploying a simple machine learning solution to Azure ML.
 
+The model uses the built-in scikit-learn diabetes dataset loaded with `sklearn.datasets.load_diabetes`.
+
 Current focus:
 - train a basic regression model with scikit-learn
 - serve predictions through a custom FastAPI API
