@@ -224,6 +224,8 @@ v1
 
 The image is available in ACR, the online endpoint has been created, and the `blue` deployment has been validated.
 
+For a field-by-field explanation of `endpoint.yml` and `deployment.yml`, see [azureml-yaml-guide.md](azureml-yaml-guide.md).
+
 Create the endpoint:
 
 ```bash
