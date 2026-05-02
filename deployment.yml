@@ -1,0 +1,19 @@
+$schema: https://azuremlschemas.azureedge.net/latest/managedOnlineDeployment.schema.json
+name: blue
+endpoint_name: diabetes-endpoint-20260422
+
+environment:
+  image: diabetes20260422.azurecr.io/azureml-sample:v1
+  inference_config:
+    liveness_route:
+      port: 80
+      path: /health
+    readiness_route:
+      port: 80
+      path: /health
+    scoring_route:
+      port: 80
+      path: /score
+
+instance_type: Standard_DS2_v2
+instance_count: 1

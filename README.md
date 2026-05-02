@@ -5,7 +5,9 @@ This project is a learning exercise for deploying a simple machine learning solu
 Current focus:
 - train a basic regression model with scikit-learn
 - serve predictions through a custom FastAPI API
-- prepare the project for Azure ML deployment later
+- package the API as a Docker image
+- push the image to Azure Container Registry
+- deploy the image to an Azure ML managed online endpoint
 
 ## Current Status
 
@@ -13,14 +15,19 @@ Implemented so far:
 - regression training script in [src/train.py](/home/palscruz23/azureml-sample/src/train.py)
 - FastAPI inference app in [app/main.py](/home/palscruz23/azureml-sample/app/main.py)
 - model artifact saved to `outputs/model/model.joblib`
+- Dockerfile for the FastAPI service
+- Azure ML endpoint configuration in `endpoint.yml`
+- Azure ML deployment configuration in `deployment.yml`
+- Docker image pushed to Azure Container Registry:
+  - `diabetes20260422.azurecr.io/azureml-sample:v1`
+- Azure ML online endpoint created:
+  - `diabetes-endpoint-20260422`
 - local endpoint routes:
   - `GET /health`
   - `POST /score`
 
 Not done yet:
-- Dockerfile for the FastAPI service
-- Azure ML deployment configuration
-- endpoint deployment and cloud validation
+- Azure ML online deployment and scoring validation
 
 ## Project Flow
 
@@ -30,6 +37,11 @@ Not done yet:
    - the feature names used during training
 3. `app/main.py` loads that model bundle on startup.
 4. The FastAPI app exposes `/score` for prediction requests.
+5. The `Dockerfile` packages the FastAPI app and model artifact into a container image.
+6. The image is tagged for Azure Container Registry as `diabetes20260422.azurecr.io/azureml-sample:v1`.
+7. The image is pushed to Azure Container Registry.
+8. The Azure ML online endpoint is created from `endpoint.yml`.
+9. Azure ML will use the ACR image when creating the online deployment from `deployment.yml`.
 
 ## Run Locally
 
@@ -129,12 +141,115 @@ Validation currently checks:
 - each item must be an object
 - each item must include all expected features
 
+## Docker Image
+
+The Docker image is built from the project root.
+
+```bash
+docker build \
+  -t diabetes20260422.azurecr.io/azureml-sample:v1 \
+  .
+```
+
+Command breakdown:
+
+- `docker build` creates an image from the `Dockerfile`.
+- `-t` assigns the image name and tag.
+- `diabetes20260422.azurecr.io` is the Azure Container Registry login server.
+- `azureml-sample` is the repository/image name inside ACR.
+- `v1` is the image version tag.
+- `.` means the current project folder is the Docker build context.
+
+Verify the local image:
+
+```bash
+docker images
+```
+
+Expected repository and tag:
+
+```text
+diabetes20260422.azurecr.io/azureml-sample   v1
+```
+
+## Push Image To ACR
+
+Log in to Azure Container Registry:
+
+```bash
+az acr login --name diabetes20260422
+```
+
+Push the image:
+
+```bash
+docker push diabetes20260422.azurecr.io/azureml-sample:v1
+```
+
+Docker knows to push to ACR because the image name starts with the registry server:
+
+```text
+diabetes20260422.azurecr.io
+```
+
+Verify the image is in ACR:
+
+```bash
+az acr repository list \
+  --name diabetes20260422 \
+  -o table
+```
+
+Check the image tag:
+
+```bash
+az acr repository show-tags \
+  --name diabetes20260422 \
+  --repository azureml-sample \
+  -o table
+```
+
+Expected tag:
+
+```text
+v1
+```
+
 ## Next Steps For Azure ML
 
-To turn this into an Azure ML deployment with a custom API, the next work items are:
+The image is now available in ACR and the online endpoint has been created. The next work items are:
 
-1. Add a `Dockerfile` to package the FastAPI application.
-2. Add a production startup command for the API server.
-3. Create Azure ML managed online endpoint configuration.
-4. Deploy the container to Azure ML as a custom inference service.
-5. Test the deployed endpoint with the same JSON payload used locally.
+1. Create the Azure ML online deployment from `deployment.yml`.
+2. Confirm traffic is routed to the `blue` deployment.
+3. Test the deployed endpoint with the same JSON payload used locally.
+
+Create the endpoint:
+
+```bash
+az ml online-endpoint create \
+  --file endpoint.yml \
+  --resource-group poljohncruz-rg \
+  --workspace-name my-workspace
+```
+
+If endpoint creation fails with `SubscriptionNotRegistered` and the missing provider is shown as `[N/A]`, check these providers:
+
+```bash
+az provider show --namespace Microsoft.PolicyInsights --query registrationState -o tsv
+az provider show --namespace Microsoft.Cdn --query registrationState -o tsv
+```
+
+If either one is not registered, register it:
+
+```bash
+az provider register --namespace Microsoft.PolicyInsights
+az provider register --namespace Microsoft.Cdn
+```
+
+Wait until both return:
+
+```text
+Registered
+```
+
+Then retry the endpoint creation command.
